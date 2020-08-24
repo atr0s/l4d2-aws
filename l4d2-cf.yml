@@ -1,0 +1,93 @@
+Parameters:
+  VPCIdParameter:
+    Type: AWS::EC2::VPC::Id
+  SubnetIdsParameter:
+    Type: List<AWS::EC2::Subnet::Id>
+  Ec2AmiIdParameter:
+    Type: String
+    Default: ami-09606da5723347bd8
+  Ec2EbsVolumeSizeParameter:
+    Type: String
+    Default: 20
+  Ec2InstanceTypeParameter:
+    Type: String
+    Default: t3.small
+    AllowedValues:
+      - t2.small
+      - t3.small
+  Ec2KeyPairNameParameter:
+    Type: AWS::EC2::KeyPair::KeyName
+
+
+Resources:
+  ServerLaunchConfiguration:
+    Type: "AWS::AutoScaling::LaunchConfiguration"
+    Properties:
+      ImageId: !Ref Ec2AmiIdParameter
+      KeyName: !Ref Ec2KeyPairNameParameter
+      InstanceType: !Ref Ec2InstanceTypeParameter
+      SecurityGroups:
+        - !Ref ServerSecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeType: gp2
+            DeleteOnTermination: true
+            VolumeSize: !Ref Ec2EbsVolumeSizeParameter
+            Encrypted: 'true'
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #cloud-config
+            hostname: l4d2-server
+            manage_etc_hosts: true
+            package_update: false
+            write_files:
+              - content: |
+                  #!/bin/bash
+                  cat <<EOF > /home/steam/steam/L4D2/left4dead2/addons/sourcemod/configs/admins_simple.ini
+                  "STEAM_1:1:1443224" "99:z" // ATROS
+                  "STEAM_1:0:91313" "99:z" // Ender
+                  "STEAM_1:1:1308931" "99:z" // Don
+                  "STEAM_1:0:1638027" "99:z" // Miguel
+                  "STEAM_1:0:1649259" "99:z" //Azmon
+                  EOF
+                path: /var/run/bootstrap/bootstrap.sh
+                permissions: '0644'
+                owner: 'root:root'
+            runcmd:
+              - [ bash, /var/run/bootstrap/bootstrap.sh ]
+
+  ServerSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      VpcId: !Ref VPCIdParameter
+      GroupDescription: !Sub "Solr default security group"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 27015
+          ToPort: 27015
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: udp
+          FromPort: 27015
+          ToPort: 27015
+          CidrIp: 0.0.0.0/0
+
+  ASG:
+    Type: "AWS::AutoScaling::AutoScalingGroup"
+    Properties:
+      Tags:
+        - Key: Name
+          Value: l4d2-server
+          PropagateAtLaunch: True
+      VPCZoneIdentifier: !Split [',', !Join [',', !Ref SubnetIdsParameter]]
+      LaunchConfigurationName: !Ref ServerLaunchConfiguration
+      MinSize: 1
+      MaxSize: 1
+    UpdatePolicy:
+      AutoScalingReplacingUpdate:
+        WillReplace: true
