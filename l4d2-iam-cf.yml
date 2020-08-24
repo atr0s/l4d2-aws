@@ -5,6 +5,8 @@ Resources:
       UserName: asg-control-user
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AutoScalingConsoleReadOnlyAccess
+        - arn:aws:iam::aws:policy/AmazonEC2ReadOnlyAccess
+        - arn:aws:iam::aws:policy/AmazonSSMFullAccess
       Policies:
         - PolicyName: "AutoScalingUpdate"
           PolicyDocument:

@@ -5,7 +5,7 @@ Parameters:
     Type: List<AWS::EC2::Subnet::Id>
   Ec2AmiIdParameter:
     Type: String
-    Default: ami-09606da5723347bd8
+    Default: ami-0ce24ed9450053e52
   Ec2EbsVolumeSizeParameter:
     Type: String
     Default: 20
@@ -17,15 +17,52 @@ Parameters:
       - t3.small
   Ec2KeyPairNameParameter:
     Type: AWS::EC2::KeyPair::KeyName
-
+  ShutdownAfterParameter:
+    Type: String
+    Default: 60
+    Description: number of idle minutes before shutting down
 
 Resources:
+  InstanceRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AutoScalingConsoleReadOnlyAccess
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: "AutoScalingUpdate"
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "autoscaling:UpdateAutoScalingGroup"
+                Resource:            
+                  - '*'
+
+  InstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref InstanceRole
+
+
   ServerLaunchConfiguration:
     Type: "AWS::AutoScaling::LaunchConfiguration"
     Properties:
       ImageId: !Ref Ec2AmiIdParameter
       KeyName: !Ref Ec2KeyPairNameParameter
       InstanceType: !Ref Ec2InstanceTypeParameter
+      IamInstanceProfile: !Ref InstanceProfile
       SecurityGroups:
         - !Ref ServerSecurityGroup
       BlockDeviceMappings:
@@ -45,12 +82,23 @@ Resources:
             write_files:
               - content: |
                   #!/bin/bash
+                  cat <<EOF > /etc/server_vars
+                  SHUTDOWN_AFTER=${ShutdownAfterParameter}
+                  EOF
                   cat <<EOF > /home/steam/steam/L4D2/left4dead2/addons/sourcemod/configs/admins_simple.ini
                   "STEAM_1:1:1443224" "99:z" // ATROS
                   "STEAM_1:0:91313" "99:z" // Ender
                   "STEAM_1:1:1308931" "99:z" // Don
                   "STEAM_1:0:1638027" "99:z" // Miguel
                   "STEAM_1:0:1649259" "99:z" //Azmon
+                  EOF
+                  cat <<EOF >> /home/steam/steam/L4D2/left4dead2/cfg/server.cfg
+                  hostname "[CAFAS] L4D2 Vanilla Server - ${AWS::Region}"
+                  sv_steamgroup 97124
+                  sv_maxplayers 8
+                  sm_cvar sv_maxplayers 8
+                  sv_force_unreserved 1
+                  sm_cvar sv_force_unreserved 1
                   EOF
                 path: /var/run/bootstrap/bootstrap.sh
                 permissions: '0644'
@@ -64,10 +112,6 @@ Resources:
       VpcId: !Ref VPCIdParameter
       GroupDescription: !Sub "Solr default security group"
       SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 22
-          ToPort: 22
-          CidrIp: 0.0.0.0/0
         - IpProtocol: tcp
           FromPort: 27015
           ToPort: 27015
@@ -88,6 +132,7 @@ Resources:
       LaunchConfigurationName: !Ref ServerLaunchConfiguration
       MinSize: 0
       MaxSize: 1
+      DesiredCapacity: 0
       NotificationConfigurations:
         - NotificationTypes:
             - "autoscaling:EC2_INSTANCE_LAUNCH"
@@ -101,3 +146,4 @@ Resources:
     Type: "AWS::SNS::Topic"
     Properties:
       TopicName: "l4d2-notification-topic"
+  
