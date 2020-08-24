@@ -1,0 +1,32 @@
+Resources:
+  AsgControlUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: asg-control-user
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AutoScalingConsoleReadOnlyAccess
+      Policies:
+        - PolicyName: "AutoScalingUpdate"
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "autoscaling:UpdateAutoScalingGroup"
+                Resource:            
+                  - '*'
+
+
+  AsgControlUserAccessKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref AsgControlUser
+      Serial: 1
+
+Outputs:
+  UserAccessKey:
+    Value: !Ref AsgControlUserAccessKey
+    Description: The AsgControlUser user access key
+
+  UserSecretKey:
+    Value: !Sub ${AsgControlUserAccessKey.SecretAccessKey}
+    Description: The AsgControlUser user secret key

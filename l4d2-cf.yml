@@ -86,8 +86,18 @@ Resources:
           PropagateAtLaunch: True
       VPCZoneIdentifier: !Split [',', !Join [',', !Ref SubnetIdsParameter]]
       LaunchConfigurationName: !Ref ServerLaunchConfiguration
-      MinSize: 1
+      MinSize: 0
       MaxSize: 1
+      NotificationConfigurations:
+        - NotificationTypes:
+            - "autoscaling:EC2_INSTANCE_LAUNCH"
+            - "autoscaling:EC2_INSTANCE_TERMINATE"
+          TopicARN: !Ref NotificationTopic
     UpdatePolicy:
       AutoScalingReplacingUpdate:
         WillReplace: true
+
+  NotificationTopic:
+    Type: "AWS::SNS::Topic"
+    Properties:
+      TopicName: "l4d2-notification-topic"
